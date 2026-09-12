@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lega Manageriale Pro: Panoramica Stadi e Infrastrutture</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Firebase SDKs (Compat version) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap');
+
+    :root {
+      --bg-dark: #030712;
+      --card-bg: rgba(15, 23, 42, 0.92);
+      --font-header: 'Orbitron', sans-serif;
+      --font-body: 'Rajdhani', sans-serif;
+    }
+
+    body {
+      background: radial-gradient(circle at top, #0f172a 0%, #030712 100%);
+      color: #f8fafc;
+      font-family: var(--font-body);
+      min-height: 100vh;
+    }
+
+    .font-header { font-family: var(--font-header); }
+
+    .card-team-1 { border: 2px solid #0284c7; box-shadow: 0 0 25px rgba(2, 132, 199, 0.3); }
+    .card-team-1 .badge-bg { background: #0284c7; }
+    .card-team-2 { border: 2px solid #dc2626; box-shadow: 0 0 25px rgba(220, 38, 38, 0.3); }
+    .card-team-2 .badge-bg { background: #dc2626; }
+    .card-team-3 { border: 2px solid #d946ef; box-shadow: 0 0 25px rgba(217, 70, 239, 0.3); }
+    .card-team-3 .badge-bg { background: #d946ef; }
+    .card-team-4 { border: 2px solid #10b981; box-shadow: 0 0 25px rgba(16, 185, 129, 0.3); }
+    .card-team-4 .badge-bg { background: #10b981; }
+
+    .glass-header {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 2px solid #1e293b;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+      color: #000000;
+      font-weight: 800;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+    }
+
+    input, select {
+      background-color: #0b1329 !important;
+      border: 1px solid #1e293b !important;
+      color: #e2e8f0 !important;
+    }
+    input:focus, select:focus {
+      border-color: #38bdf8 !important;
+      outline: none;
+    }
+
+    .stadium-container {
+      background: radial-gradient(circle at center, #0f1c38 0%, #030712 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #030712; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #38bdf8; }
+  </style>
+</head>
+<body class="p-2 md:p-6">
+
+  <header class="glass-header rounded-2xl p-4 mb-6 shadow-2xl relative overflow-hidden">
+    <div class="absolute -right-10 -top-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl"></div>
+    <div class="flex flex-col md:flex-row justify-between items-center gap-4 relative z-10">
+      <div>
+        <div class="flex items-center gap-3">
+          <i class="fa-solid fa-stadium text-cyan-400 text-2xl"></i>
+          <h1 class="font-header text-xl md:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-200 to-blue-500">
+            LEGA MANAGERIALE: PANORAMICA STADI E INFRASTRUTTURE
+          </h1>
+        </div>
+        <p class="text-xs text-slate-400 mt-1 flex items-center gap-2 font-mono">
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          STATO: <span id="currentStatusText" class="text-amber-400 font-bold">ONLINE CLOUD SYNC</span>
+        </p>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button onclick="openModal('backupModal')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-cyan-500/30 rounded-lg text-xs font-bold transition flex items-center gap-2">
+          <i class="fa-solid fa-code"></i> JSON Backup / Import
+        </button>
+        <button onclick="resetData()" class="px-3 py-2 bg-red-950/60 hover:bg-red-900/80 text-red-400 border border-red-500/30 rounded-lg text-xs font-bold transition flex items-center gap-2">
+          <i class="fa-solid fa-rotate-left"></i> Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex gap-2 mt-4 overflow-x-auto pb-1 text-xs">
+      <button class="tab-btn active px-4 py-2 rounded-lg text-slate-300 font-semibold transition whitespace-nowrap" onclick="switchTab('stadi', this)">
+        <i class="fa-solid fa-stadium text-sm mr-1"></i> 1. Panoramica Stadi
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-slate-300 font-semibold transition whitespace-nowrap" onclick="switchTab('giornata', this)">
+        <i class="fa-solid fa-calculator text-sm mr-1"></i> 2. Calcolo Incassi & Giornata
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-slate-300 font-semibold transition whitespace-nowrap" onclick="switchTab('primavera', this)">
+        <i class="fa-solid fa-seedling text-sm mr-1"></i> 3. Modulo Primavera
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-slate-300 font-semibold transition whitespace-nowrap" onclick="switchTab('grafici', this)">
+        <i class="fa-solid fa-chart-column text-sm mr-1"></i> 4. Rendimento & Grafici
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section id="tab-stadi" class="tab-content block">
+      <div id="stadiGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></div>
+    </section>
+
+    <section id="tab-giornata" class="tab-content hidden">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 max-w-4xl mx-auto shadow-2xl">
+        <h2 class="font-header text-lg text-cyan-400 mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-coins text-amber-400"></i> Gestione Turno & Accredito Incassi
+        </h2>
+        <p class="text-xs text-slate-400 mb-6">Inserisci i fantapunti della giornata per calcolare automaticamente bonus campo, incassi da botteghino e premi partita.</p>
+        <div id="giornataInputs" class="space-y-4 mb-6"></div>
+        <button onclick="calcolaTurno()" class="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black rounded-xl text-sm transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-bolt text-lg"></i> CONFERMA E APPLICA ACCREDITI
+        </button>
+      </div>
+    </section>
+
+    <section id="tab-primavera" class="tab-content hidden">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 max-w-4xl mx-auto shadow-2xl">
+        <h2 class="font-header text-lg text-emerald-400 mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-seedling"></i> Settore Giovanile & Promozioni Primavera
+        </h2>
+        <p class="text-xs text-slate-400 mb-6">Gestisci i giovani talenti aggregati alla prima squadra e la loro crescita in rosa.</p>
+        <div id="primaveraInputs" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      </div>
+    </section>
+
+    <section id="tab-grafici" class="tab-content hidden">
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 max-w-4xl mx-auto shadow-2xl">
+        <h2 class="font-header text-lg text-sky-400 mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-chart-line"></i> Trend Punteggi & Rendimento Turni
+        </h2>
+        <p class="text-xs text-slate-400 mb-4">Confronto visivo tra i fantapunti totalizzati dai quattro club nelle ultime giornate.</p>
+        <div class="w-full h-80 bg-slate-950/80 border border-slate-800 rounded-xl p-4 relative">
+          <canvas id="chartCanvas"></canvas>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="backupModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-cyan-500/40 rounded-2xl p-6 w-full max-w-xl shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-header text-cyan-400 font-bold flex items-center gap-2">
+          <i class="fa-solid fa-database"></i> Backup & Ripristino Dati JSON
+        </h3>
+        <button onclick="closeModal('backupModal')" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-xs text-slate-400 mb-2">Copia questo codice per salvare lo stato della lega, oppure incolla un vecchio codice per caricarla:</p>
+      <textarea id="jsonBox" class="w-full h-44 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-emerald-400 mb-4 focus:outline-none"></textarea>
+      
+      <div class="flex gap-3">
+        <button onclick="copyToClipboard()" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold rounded-lg text-xs transition border border-cyan-500/30">
+          <i class="fa-solid fa-copy mr-1"></i> Copia negli Appunti
+        </button>
+        <button onclick="importJSON()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black rounded-lg text-xs transition">
+          <i class="fa-solid fa-file-import mr-1"></i> Incolla & Carica Dati
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // CONFIGURAZIONE FIREBASE AGGIORNATA
+    const firebaseConfig = {
+      apiKey: "AIzaSyCDpj8fW1TAVtmt34teaNZ0cez11BUJ1bI",
+      authDomain: "lega-fanta.firebaseapp.com",
+      projectId: "lega-fanta",
+      storageBucket: "lega-fanta.firebasestorage.app",
+      messagingSenderId: "1097611370647",
+      appId: "1:1097611370647:web:852d0925363263ad4809d2",
+      measurementId: "G-ZW3J0X3NDK"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const dbRef = firebase.database().ref('league/teams');
+
+    const TERRENO_MAP = [
+      { lvl: 0, name: "Campo Standard", bonus: 0.0, badge: "Livello 0" },
+      { lvl: 1, name: "Manto Professionale", bonus: 0.5, badge: "Livello 1" },
+      { lvl: 2, name: "Impianto d'Élite", bonus: 1.0, badge: "Livello 2" },
+      { lvl: 3, name: "Centro Tecnologico", bonus: 1.5, badge: "Livello 3" },
+      { lvl: 4, name: "Stadio d'Élite Mondiale", bonus: 2.0, badge: "Livello 4" }
+    ];
+
+    const BOTTEGHINO_MAP = [
+      { fascia: 0, name: "Base (10k Posti)", incasso: 1, label: "Fascia 0" },
+      { fascia: 1, name: "Ampliamento Base", incasso: 2, label: "Fascia 1" },
+      { fascia: 2, name: "Curva Sud / Nord", incasso: 3, label: "Fascia 2" },
+      { fascia: 3, name: "2° Anello (50k Posti)", incasso: 4, label: "Fascia 3" },
+      { fascia: 4, name: "Catino Catastrofico", incasso: 6, label: "Fascia 4" }
+    ];
+
+    const defaultTeams = [
+      { id: 1, initial: "C", name: "CARMELO", club: "Carmyspecial", colorClass: "card-team-1", primaryColor: "#0284c7", terrenoLvl: 2, botteghinoFascia: 0, primavera: false, primaveraPlayer: "", medico: true, cassa: 24, ultimoPunteggio: 78 },
+      { id: 2, initial: "M", name: "MICHELE", club: "cacca FC", colorClass: "card-team-2", primaryColor: "#dc2626", terrenoLvl: 0, botteghinoFascia: 0, primavera: false, primaveraPlayer: "", medico: false, cassa: 140, ultimoPunteggio: 69 },
+      { id: 3, initial: "F", name: "CICCIO / Francesco", club: "Frabevi", colorClass: "card-team-3", primaryColor: "#d946ef", terrenoLvl: 2, botteghinoFascia: 3, primavera: true, primaveraPlayer: "Valdepeñas", medico: false, cassa: 4, ultimoPunteggio: 82 },
+      { id: 4, initial: "A", name: "ARTIOM", club: "Pulisic Park", colorClass: "card-team-4", primaryColor: "#10b981", terrenoLvl: 0, botteghinoFascia: 1, primavera: true, primaveraPlayer: "Lulli, Galtier", medico: true, cassa: 10, ultimoPunteggio: 74 }
+    ];
+
+    let teams = JSON.parse(JSON.stringify(defaultTeams));
+
+    // Sincronizzazione in tempo reale con Firebase Cloud
+    dbRef.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        teams = data;
+        renderApp();
+      } else {
+        dbRef.set(defaultTeams);
+      }
+    });
+
+    function saveState() {
+      dbRef.set(teams);
+    }
+
+    function resetData() {
+      if (confirm("Sei sicuro di voler ripristinare tutti i dati della lega per tutti i partecipanti?")) {
+        teams = JSON.parse(JSON.stringify(defaultTeams));
+        saveState();
+      }
+    }
+
+    function draw3DStadium(canvasId, terrenoLvl, botteghinoFascia, teamColor) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width = 360;
+      const h = canvas.height = 200;
+      const cx = w / 2;
+      const cy = h / 2 + 12;
+
+      ctx.clearRect(0, 0, w, h);
+
+      function drawIsometricPolygon(points, fillColor, strokeColor, lineWidth = 1) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) { ctx.lineTo(points[i].x, points[i].y); }
+        ctx.closePath();
+        if (fillColor) { ctx.fillStyle = fillColor; ctx.fill(); }
+        if (strokeColor) { ctx.strokeStyle = strokeColor; ctx.lineWidth = lineWidth; ctx.stroke(); }
+      }
+
+      function drawIsoBlock(x, y, rx, ry, height, topColor, sideColorLeft, sideColorRight, outlineColor) {
+        if (height > 0) {
+          drawIsometricPolygon([{ x: x - rx, y: y }, { x: x, y: y + ry }, { x: x, y: y + ry + height }, { x: x - rx, y: y + height }], sideColorLeft, outlineColor);
+          drawIsometricPolygon([{ x: x, y: y + ry }, { x: x + rx, y: y }, { x: x + rx, y: y + height }, { x: x, y: y + ry + height }], sideColorRight, outlineColor);
+        }
+        drawIsometricPolygon([{ x: x, y: y - ry }, { x: x + rx, y: y }, { x: x, y: y + ry }, { x: x - rx, y: y }], topColor, outlineColor);
+      }
+
+      function drawPitch(pitchCx, pitchCy, rx, ry) {
+        drawIsoBlock(pitchCx, pitchCy, rx, ry, 5, "#15803d", "#166534", "#14532d", "#22c55e");
+        ctx.save();
+        const stripeCount = 7;
+        for (let i = 0; i < stripeCount; i++) {
+          if (i % 2 === 0) {
+            const ratio1 = i / stripeCount;
+            const ratio2 = (i + 1) / stripeCount;
+            ctx.fillStyle = "rgba(34, 197, 94, 0.15)";
+            ctx.beginPath();
+            ctx.moveTo(pitchCx - rx + (rx * 2 * ratio1), pitchCy - ry + (ry * 2 * ratio1));
+            ctx.lineTo(pitchCx - rx + (rx * 2 * ratio2), pitchCy - ry + (ry * 2 * ratio2));
+            ctx.lineTo(pitchCx + (rx * 2 * ratio2) - rx, pitchCy + (ry * 2 * ratio2) - ry);
+            ctx.lineTo(pitchCx + (rx * 2 * ratio1) - rx, pitchCy + (ry * 2 * ratio1) - ry);
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+        ctx.lineWidth = 1.5;
+        const offset = 4;
+        ctx.beginPath();
+        ctx.moveTo(pitchCx, pitchCy - ry + offset);
+        ctx.lineTo(pitchCx + rx - offset * 1.8, pitchCy);
+        ctx.lineTo(pitchCx, pitchCy + ry - offset);
+        ctx.lineTo(pitchCx - rx + offset * 1.8, pitchCy);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      drawIsoBlock(cx, cy + 18, 140, 68, 10, "#0b1329", "#040817", "#070e24", teamColor);
+
+      if (botteghinoFascia >= 3) {
+        drawIsoBlock(cx, cy - 10, 125, 60, 30, "#1e293b", "#0f172a", "#1b273a", teamColor);
+        drawIsoBlock(cx, cy - 16, 115, 54, 18, "#334155", "#1e293b", "#273549", "#d946ef");
+        drawIsoBlock(cx, cy - 6, 85, 40, 4, "#0f172a", "#020617", "#090d1a", null);
+        drawPitch(cx, cy - 4, 75, 34);
+        drawIsoBlock(cx, cy - 28, 122, 58, 8, "rgba(217, 70, 239, 0.25)", "rgba(217, 70, 239, 0.6)", "rgba(217, 70, 239, 0.4)", "#d946ef");
+      } else if (botteghinoFascia === 1 || botteghinoFascia === 2) {
+        drawIsoBlock(cx, cy - 6, 110, 52, 22, "#1e293b", "#0f172a", "#1b273a", teamColor);
+        drawIsoBlock(cx, cy - 10, 98, 46, 12, "#334155", "#1e293b", "#28374d", teamColor);
+        drawPitch(cx, cy - 2, 72, 32);
+      } else if (terrenoLvl >= 2) {
+        drawIsoBlock(cx, cy - 8, 118, 55, 24, "#0c4a6e", "#0369a1", "#0284c7", "#38bdf8");
+        drawIsoBlock(cx, cy - 14, 102, 48, 14, "#1e293b", "#0f172a", "#192639", "#38bdf8");
+        drawPitch(cx, cy - 4, 75, 34);
+      } else {
+        drawPitch(cx, cy, 78, 35);
+      }
+    }
+
+    function renderApp() {
+      const grid = document.getElementById('stadiGrid');
+      const giornataContainer = document.getElementById('giornataInputs');
+      const primaveraContainer = document.getElementById('primaveraInputs');
+
+      grid.innerHTML = '';
+      giornataContainer.innerHTML = '';
+      primaveraContainer.innerHTML = '';
+
+      teams.forEach(t => {
+        const terreno = TERRENO_MAP[t.terrenoLvl];
+        const botteghino = BOTTEGHINO_MAP[t.botteghinoFascia];
+
+        const card = document.createElement('div');
+        card.className = `bg-slate-900/90 rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden transition-all duration-300 ${t.colorClass}`;
+        card.innerHTML = `
+          <div class="flex items-center justify-between border-b border-slate-800/80 pb-3 mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-full badge-bg text-slate-950 font-black flex items-center justify-center font-header text-sm shadow-md">${t.initial}</div>
+              <div><h3 class="font-header text-sm font-bold tracking-wide text-white">${t.name} <span class="text-xs text-slate-400 font-normal">(${t.club})</span></h3></div>
+            </div>
+            <span class="text-xs font-mono font-bold px-2 py-1 bg-slate-950/80 border border-amber-500/30 rounded text-amber-400 flex items-center gap-1">
+              <i class="fa-solid fa-coins text-amber-400"></i> ${t.cassa} Crediti
+            </span>
+          </div>
+
+          <div class="stadium-container mb-4">
+            <canvas id="stadiumCanvas_${t.id}" class="w-full h-48 block"></canvas>
+            <div class="absolute top-2 left-2"><span class="text-[10px] font-bold px-2 py-0.5 bg-sky-950/90 text-sky-300 border border-sky-500/40 rounded-full">${terreno.name}</span></div>
+            <div class="absolute bottom-2 right-2"><span class="text-[10px] font-black px-2 py-1 bg-amber-500 text-slate-950 rounded shadow font-header">${botteghino.label}</span></div>
+          </div>
+
+          <div class="space-y-2 text-xs mb-4">
+            <div class="flex items-center justify-between bg-slate-950/50 p-2 rounded-lg border border-slate-800/50">
+              <span class="text-slate-400 font-semibold"><i class="fa-solid fa-bolt text-amber-400"></i> STRUTTURA:</span>
+              <span class="font-bold text-sky-400">LIVELLO ${t.terrenoLvl}</span>
+            </div>
+            <div class="flex items-center justify-between bg-slate-950/50 p-2 rounded-lg border border-slate-800/50">
+              <span class="text-slate-400 font-semibold"><i class="fa-solid fa-landmark text-cyan-400"></i> CAPIENZA:</span>
+              <span class="font-bold text-amber-400">FASCIA ${t.botteghinoFascia}</span>
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <label class="block text-[10px] text-slate-400 font-bold mb-1">LIVELLO TERRENO</label>
+              <select onchange="updateTeam(${t.id}, 'terrenoLvl', this.value)" class="w-full p-1.5 rounded-lg text-xs">
+                ${TERRENO_MAP.map(m => `<option value="${m.lvl}" ${m.lvl === t.terrenoLvl ? 'selected':''}>Lvl ${m.lvl}: ${m.name}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400 font-bold mb-1">CAPIENZA STADIO</label>
+              <select onchange="updateTeam(${t.id}, 'botteghinoFascia', this.value)" class="w-full p-1.5 rounded-lg text-xs">
+                ${BOTTEGHINO_MAP.map(b => `<option value="${b.fascia}" ${b.fascia === t.botteghinoFascia ? 'selected':''}>Fascia ${b.fascia}: ${b.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="col-span-2 flex justify-between items-center bg-slate-950 p-2 rounded-lg mt-1 border border-slate-800">
+              <span class="text-xs font-bold text-slate-300">MODIFICA CASSA:</span>
+              <div class="flex items-center gap-1">
+                <input type="number" value="${t.cassa}" onchange="updateTeam(${t.id}, 'cassa', parseInt(this.value)||0)" class="w-20 p-1 text-right font-bold text-amber-400 rounded">
+                <span class="text-xs text-amber-400 font-bold">Cr</span>
+              </div>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+
+        const gRow = document.createElement('div');
+        gRow.className = "p-4 bg-slate-950/80 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4";
+        gRow.innerHTML = `
+          <div class="flex items-center gap-3"><div class="w-7 h-7 rounded-full text-slate-950 font-black flex items-center justify-center font-header text-xs" style="background:${t.primaryColor}">${t.initial}</div><div><div class="font-bold text-sm text-white">${t.name}</div><div class="text-xs text-slate-400">Cassa: <span class="text-amber-400 font-bold">${t.cassa} Cr</span></div></div></div>
+          <div class="flex items-center gap-4">
+            <div><label class="block text-[10px] text-slate-400">FANTAPUNTI</label><input type="number" id="giornata_pt_${t.id}" value="${t.ultimoPunteggio || 72}" step="0.5" class="w-20 p-1.5 text-center font-bold text-cyan-400 rounded-lg"></div>
+            <div><label class="block text-[10px] text-slate-400">VITTORIA</label><select id="giornata_win_${t.id}" class="p-1.5 rounded-lg"><option value="0">No</option><option value="1">Sì (+3 Cr)</option></select></div>
+          </div>
+        `;
+        giornataContainer.appendChild(gRow);
+
+        const pCard = document.createElement('div');
+        pCard.className = "p-4 bg-slate-950/80 rounded-xl border border-slate-800 flex flex-col justify-between gap-3";
+        pCard.innerHTML = `
+          <div class="flex justify-between items-center border-b border-slate-800 pb-2"><span class="font-bold text-sm text-white">${t.name}</span><label class="flex items-center gap-2 text-xs font-semibold text-emerald-400 cursor-pointer"><input type="checkbox" ${t.primavera ? 'checked':''} onchange="updateTeam(${t.id}, 'primavera', this.checked)"> Sblocca</label></div>
+          ${t.primavera ? `<input type="text" value="${t.primaveraPlayer || ''}" placeholder="Nome giovane..." onchange="updateTeam(${t.id}, 'primaveraPlayer', this.value)" class="w-full p-2 rounded-lg text-xs">` : `<div class="text-xs text-slate-500 italic">Disattivato</div>`}
+        `;
+        primaveraContainer.appendChild(pCard);
+      });
+
+      setTimeout(() => {
+        teams.forEach(t => draw3DStadium(`stadiumCanvas_${t.id}`, t.terrenoLvl, t.botteghinoFascia, t.primaryColor));
+      }, 50);
+    }
+
+    function updateTeam(id, key, value) {
+      const t = teams.find(x => x.id === id);
+      if (t) {
+        if (key === 'terrenoLvl' || key === 'botteghinoFascia') t[key] = parseInt(value);
+        else t[key] = value;
+        saveState();
+      }
+    }
+
+    function calcolaTurno() {
+      teams.forEach(t => {
+        const ptInput = document.getElementById(`giornata_pt_${t.id}`);
+        const winInput = document.getElementById(`giornata_win_${t.id}`);
+        if (ptInput && winInput) {
+          const pt = parseFloat(ptInput.value) || 0;
+          const isWinner = winInput.value === "1";
+          t.ultimoPunteggio = pt;
+          let premioSoglia = pt >= 84 ? 6 : pt >= 78 ? 4 : pt >= 72 ? 2 : 0;
+          if (isWinner) premioSoglia += 3;
+          t.cassa += (BOTTEGHINO_MAP[t.botteghinoFascia].incasso + premioSoglia - 2);
+        }
+      });
+      saveState();
+      alert("✅ Turno applicato e sincronizzato in tempo reale!");
+    }
+
+    function drawChart() {
+      const canvas = document.getElementById('chartCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width = canvas.parentElement.clientWidth - 32;
+      const h = canvas.height = 280;
+      ctx.clearRect(0, 0, w, h);
+      const maxScore = 100;
+      const barWidth = Math.min(55, w / (teams.length * 2));
+      const gap = (w - (teams.length * barWidth)) / (teams.length + 1);
+
+      teams.forEach((t, i) => {
+        const score = t.ultimoPunteggio || 66;
+        const barHeight = (score / maxScore) * (h - 70);
+        const x = gap + i * (barWidth + gap);
+        const y = h - barHeight - 35;
+        ctx.fillStyle = t.primaryColor;
+        ctx.fillRect(x, y, barWidth, barHeight);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 13px Orbitron";
+        ctx.textAlign = "center";
+        ctx.fillText(`${score} pt`, x + barWidth / 2, y - 10);
+      });
+    }
+
+    function switchTab(tabName, btnElement) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabName).classList.remove('hidden');
+      btnElement.classList.add('active');
+      if (tabName === 'grafici') setTimeout(drawChart, 100);
+    }
+
+    function openModal(id) {
+      if (id === 'backupModal') document.getElementById('jsonBox').value = JSON.stringify(teams, null, 2);
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function copyToClipboard() { document.getElementById('jsonBox').select(); document.execCommand('copy'); alert("Copiato!"); }
+    function importJSON() {
+      try {
+        teams = JSON.parse(document.getElementById('jsonBox').value);
+        saveState();
+        closeModal('backupModal');
+        alert("Importato!");
+      } catch (e) { alert("Errore JSON"); }
+    }
+  </script>
+</body>
+</html>
